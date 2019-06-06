@@ -109,7 +109,7 @@ VertTexPos VSTexPosHalf_Reverse(uint id : VERTEXID)
 	float x = idHigh * 4.0 - 1.0;
 	float y = idLow * 4.0 - 1.0;
 
-	float u = idHigh * 2.0;
+	float u = idHigh * 2.0 + width_x2_i;
 	float v = obs_glsl_compile ? (idLow * 2.0) : (1.0 - idLow * 2.0);
 
 	VertTexPos vert_out;
