@@ -125,9 +125,10 @@ static inline void render_main_texture(struct obs_core_video *video)
 			      render_main_texture_name);
 
 	struct vec4 clear_color;
-	vec4_set(&clear_color, 0.0f, 0.0f, 0.0f, 0.0f);
+	vec4_set(&clear_color, 0.0f, 0.0f, 0.0f, 1.0f);
 
 	gs_set_render_target(video->render_texture, NULL);
+	gs_set_colorspace(GS_CS_ACESCG);
 	gs_clear(GS_CLEAR_COLOR, &clear_color, 1.0f, 0);
 
 	set_render_size(video->base_width, video->base_height);
@@ -234,7 +235,11 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 		gs_effect_get_param_by_name(effect, "base_dimension_i");
 	size_t passes, i;
 
+	const enum gs_colorspace target_cs =
+		convert_video_colorspace(video->ovi.colorspace);
+
 	gs_set_render_target(target, NULL);
+	gs_set_colorspace(target_cs);
 	set_render_size(width, height);
 
 	if (bres) {
@@ -251,6 +256,7 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 		gs_effect_set_vec2(bres_i, &base_i);
 	}
 
+	gs_effect_set_color_translate(effect, GS_CS_ACESCG, target_cs);
 	gs_effect_set_texture(image, texture);
 
 	gs_enable_blending(false);
