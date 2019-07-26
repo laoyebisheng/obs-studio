@@ -218,12 +218,8 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
 		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
 	} else {
-		if ((effect == video->default_effect) &&
-		    (width == video->base_width) &&
-		    (height == video->base_height))
-			return texture;
-
-		tech = gs_effect_get_technique(effect, "Draw");
+		// TODO: Fix scaling scnearios.
+		tech = gs_effect_get_technique(effect, "DrawTranslate");
 	}
 
 	profile_start(render_output_texture_name);

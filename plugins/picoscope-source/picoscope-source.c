@@ -115,6 +115,7 @@ static void PREF4 stream_callback(int16_t handle, int32_t noOfSamples, uint32_t 
 					frame.height = PICOSCOPE_HEIGHT;
 					frame.timestamp = (context->total_samples + sample_index) >> 6;
 					frame.format = VIDEO_FORMAT_RGBA;
+					frame.colorspace = VIDEO_CS_601;
 					frame.range = VIDEO_RANGE_FULL;
 					frame.flip = false;
 					obs_source_output_video2(context->src, &frame);
