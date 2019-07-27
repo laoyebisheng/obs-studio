@@ -66,10 +66,13 @@ EXPORT gs_shader_t *device_pixelshader_create(gs_device_t *device,
 EXPORT gs_vertbuffer_t *device_vertexbuffer_create(gs_device_t *device,
 		struct gs_vb_data *data, uint32_t flags);
 EXPORT gs_indexbuffer_t *device_indexbuffer_create(gs_device_t *device,
-		enum gs_index_type type, void *indices, size_t num,
-		uint32_t flags);
-EXPORT enum gs_texture_type device_get_texture_type(
-		const gs_texture_t *texture);
+						   enum gs_index_type type,
+						   void *indices, size_t num,
+						   uint32_t flags);
+EXPORT gs_timer_t *device_timer_create(gs_device_t *device);
+EXPORT gs_timer_range_t *device_timer_range_create(gs_device_t *device);
+EXPORT enum gs_texture_type
+device_get_texture_type(const gs_texture_t *texture);
 EXPORT void device_load_vertexbuffer(gs_device_t *device,
 		gs_vertbuffer_t *vertbuffer);
 EXPORT void device_load_indexbuffer(gs_device_t *device,
