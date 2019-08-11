@@ -1085,6 +1085,7 @@ inline bool DShowInput::Activate(obs_data_t *settings)
 
 	enum video_colorspace cs = GetColorSpace(settings);
 	range = GetColorRange(settings);
+	frame.colorspace = cs;
 	frame.range = range;
 
 	bool success = video_format_get_parameters(cs, range,
