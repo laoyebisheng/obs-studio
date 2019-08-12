@@ -284,7 +284,8 @@ try {
 	gs_vertex_shader nv12_vs(this, "", NV12_VS);
 	gs_pixel_shader nv12_y_ps(this, "", NV12_Y_PS);
 	gs_pixel_shader nv12_uv_ps(this, "", NV12_UV_PS);
-	gs_stage_surface nv12_stage(this, NV12_CX, NV12_CY);
+	gs_stage_surface nv12_stage(this, NV12_CX, NV12_CY, GS_UNKNOWN,
+				    DXGI_FORMAT_NV12);
 
 	gs_vb_data *vbd = gs_vbdata_create();
 	vbd->num = 4;
@@ -999,6 +1000,26 @@ gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 	return surf;
 }
 
+gs_stagesurf_t *
+device_stagesurface_create_write(gs_device_t *device, uint32_t width,
+				 uint32_t height,
+				 enum gs_color_format color_format)
+{
+	gs_stage_surface *surf = NULL;
+	try {
+		surf = new gs_stage_surface(device, width, height, color_format,
+					    true);
+	} catch (HRError error) {
+		blog(LOG_ERROR,
+		     "device_stagesurface_create (D3D11): %s "
+		     "(%08lX)",
+		     error.str, error.hr);
+		LogD3D11ErrorDetails(error, device);
+	}
+
+	return surf;
+}
+
 gs_samplerstate_t *
 device_samplerstate_create(gs_device_t *device,
 			   const struct gs_sampler_info *info)
@@ -1470,6 +1491,42 @@ inline void gs_device::CopyTex(ID3D11Texture2D *dst, uint32_t dst_x,
 	}
 }
 
+inline void gs_device::CopyTex(gs_texture_t *dst, uint32_t dst_x,
+			       uint32_t dst_y, ID3D11Texture2D *src,
+			       uint32_t src_x, uint32_t src_y, uint32_t src_w,
+			       uint32_t src_h)
+{
+	if (dst->type != GS_TEXTURE_2D)
+		throw "Source texture must be a 2D texture";
+
+	gs_texture_2d *tex2d = static_cast<gs_texture_2d *>(dst);
+
+	if (dst_x == 0 && dst_y == 0 && src_x == 0 && src_y == 0 &&
+	    src_w == 0 && src_h == 0) {
+		context->CopyResource(tex2d->texture, src);
+	} else {
+		D3D11_BOX sbox;
+
+		sbox.left = src_x;
+		if (src_w > 0)
+			sbox.right = src_x + src_w;
+		else
+			sbox.right = tex2d->width - 1;
+
+		sbox.top = src_y;
+		if (src_h > 0)
+			sbox.bottom = src_y + src_h;
+		else
+			sbox.bottom = tex2d->height - 1;
+
+		sbox.front = 0;
+		sbox.back = 1;
+
+		context->CopySubresourceRegion(tex2d->texture, 0, dst_x, dst_y,
+					       0, src, 0, &sbox);
+	}
+}
+
 void device_copy_texture_region(gs_device_t *device, gs_texture_t *dst,
 				uint32_t dst_x, uint32_t dst_y,
 				gs_texture_t *src, uint32_t src_x,
@@ -1546,6 +1603,31 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 
 	} catch (const char *error) {
 		blog(LOG_ERROR, "device_copy_texture (D3D11): %s", error);
+	}
+}
+
+void device_stage_texture_write(gs_device_t *device, gs_texture_t *dst,
+				gs_stagesurf_t *src)
+{
+	try {
+		gs_texture_2d *dst2d = static_cast<gs_texture_2d *>(dst);
+
+		if (!dst)
+			throw "Destination texture is NULL";
+		if (dst->type != GS_TEXTURE_2D)
+			throw "Destination texture must be a 2D texture";
+		if (!dst)
+			throw "Source surface is NULL";
+		if (src->format != GS_UNKNOWN && src->format != dst->format)
+			throw "Source and destination formats do not match";
+		if (src->width != dst2d->width || src->height != dst2d->height)
+			throw "Source and destination must have the same "
+			      "dimensions";
+
+		device->CopyTex(dst, 0, 0, src->texture, 0, 0, 0, 0);
+
+	} catch (const char *error) {
+		blog(LOG_ERROR, "device_copy_texture_write (D3D11): %s", error);
 	}
 }
 
@@ -2127,7 +2209,25 @@ bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 	return true;
 }
 
+bool gs_stagesurface_map_write(gs_stagesurf_t *stagesurf, uint8_t **data,
+			       uint32_t *linesize)
+{
+	D3D11_MAPPED_SUBRESOURCE map;
+	if (FAILED(stagesurf->device->context->Map(stagesurf->texture, 0,
+						   D3D11_MAP_WRITE, 0, &map)))
+		return false;
+
+	*data = (uint8_t *)map.pData;
+	*linesize = map.RowPitch;
+	return true;
+}
+
 void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
+{
+	stagesurf->device->context->Unmap(stagesurf->texture, 0);
+}
+
+void gs_stagesurface_unmap_write(gs_stagesurf_t *stagesurf)
 {
 	stagesurf->device->context->Unmap(stagesurf->texture, 0);
 }
@@ -2555,7 +2655,8 @@ device_stagesurface_create_nv12(gs_device_t *device, uint32_t width,
 {
 	gs_stage_surface *surf = NULL;
 	try {
-		surf = new gs_stage_surface(device, width, height);
+		surf = new gs_stage_surface(device, width, height, GS_UNKNOWN,
+					    DXGI_FORMAT_NV12);
 	} catch (HRError error) {
 		blog(LOG_ERROR,
 		     "device_stagesurface_create (D3D11): %s "

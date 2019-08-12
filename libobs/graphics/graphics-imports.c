@@ -60,6 +60,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_voltexture_create);
 	GRAPHICS_IMPORT(device_zstencil_create);
 	GRAPHICS_IMPORT(device_stagesurface_create);
+	GRAPHICS_IMPORT(device_stagesurface_create_write);
 	GRAPHICS_IMPORT(device_samplerstate_create);
 	GRAPHICS_IMPORT(device_vertexshader_create);
 	GRAPHICS_IMPORT(device_pixelshader_create);
@@ -84,6 +85,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_copy_texture_region);
 	GRAPHICS_IMPORT(device_copy_texture);
 	GRAPHICS_IMPORT(device_stage_texture);
+	GRAPHICS_IMPORT(device_stage_texture_write);
 	GRAPHICS_IMPORT(device_begin_scene);
 	GRAPHICS_IMPORT(device_draw);
 	GRAPHICS_IMPORT(device_load_swapchain);
@@ -137,7 +139,9 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(gs_stagesurface_get_height);
 	GRAPHICS_IMPORT(gs_stagesurface_get_color_format);
 	GRAPHICS_IMPORT(gs_stagesurface_map);
+	GRAPHICS_IMPORT(gs_stagesurface_map_write);
 	GRAPHICS_IMPORT(gs_stagesurface_unmap);
+	GRAPHICS_IMPORT(gs_stagesurface_unmap_write);
 
 	GRAPHICS_IMPORT(gs_zstencil_destroy);
 

@@ -535,7 +535,14 @@ struct gs_stage_surface : gs_obj {
 
 	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
 			 gs_color_format colorFormat);
-	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height);
+	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
+			 gs_color_format colorFormat, bool write);
+	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
+			 gs_color_format colorFormat,
+			 DXGI_FORMAT dxgiColorFormat);
+	gs_stage_surface(gs_device_t *device, uint32_t width, uint32_t height,
+			 gs_color_format colorFormat,
+			 DXGI_FORMAT dxgiColorFormat, bool write);
 };
 
 struct gs_sampler_state : gs_obj {
@@ -917,6 +924,9 @@ struct gs_device {
 
 	inline void CopyTex(ID3D11Texture2D *dst, uint32_t dst_x,
 			    uint32_t dst_y, gs_texture_t *src, uint32_t src_x,
+			    uint32_t src_y, uint32_t src_w, uint32_t src_h);
+	inline void CopyTex(gs_texture_t *dst, uint32_t dst_x, uint32_t dst_y,
+			    ID3D11Texture2D *src, uint32_t src_x,
 			    uint32_t src_y, uint32_t src_w, uint32_t src_h);
 
 	void UpdateViewProjMatrix();

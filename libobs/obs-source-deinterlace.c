@@ -288,9 +288,12 @@ void deinterlace_update_async_video(obs_source_t *source)
 
 	if (frame) {
 		if (set_async_texture_size(source, frame)) {
-			update_async_textures(source, frame,
-					      source->async_prev_textures,
-					      source->async_prev_texrender);
+			const int cur_texture = obs->video.cur_texture;
+			update_async_textures(
+				source, frame,
+				source->async_upload_surfaces[cur_texture],
+				source->async_prev_textures,
+				source->async_prev_texrender);
 		}
 
 		obs_source_release_frame(source, frame);

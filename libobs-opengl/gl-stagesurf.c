@@ -42,6 +42,31 @@ static bool create_pixel_pack_buffer(struct gs_stage_surface *surf)
 	return success;
 }
 
+static bool create_pixel_pack_buffer_write(struct gs_stage_surface *surf)
+{
+	GLsizeiptr size;
+	bool success = true;
+
+	if (!gl_gen_buffers(1, &surf->pack_buffer))
+		return false;
+
+	if (!gl_bind_buffer(GL_PIXEL_PACK_BUFFER, surf->pack_buffer))
+		return false;
+
+	size = surf->width * surf->bytes_per_pixel;
+	size = (size + 3) & 0xFFFFFFFC; /* align width to 4-byte boundary */
+	size *= surf->height;
+
+	glBufferData(GL_PIXEL_PACK_BUFFER, size, 0, GL_STREAM_DRAW);
+	if (!gl_success("glBufferData"))
+		success = false;
+
+	if (!gl_bind_buffer(GL_PIXEL_PACK_BUFFER, 0))
+		success = false;
+
+	return success;
+}
+
 gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 					   uint32_t height,
 					   enum gs_color_format color_format)
@@ -59,6 +84,31 @@ gs_stagesurf_t *device_stagesurface_create(gs_device_t *device, uint32_t width,
 
 	if (!create_pixel_pack_buffer(surf)) {
 		blog(LOG_ERROR, "device_stagesurface_create (GL) failed");
+		gs_stagesurface_destroy(surf);
+		return NULL;
+	}
+
+	return surf;
+}
+
+gs_stagesurf_t *
+device_stagesurface_create_write(gs_device_t *device, uint32_t width,
+				 uint32_t height,
+				 enum gs_color_format color_format)
+{
+	struct gs_stage_surface *surf;
+	surf = bzalloc(sizeof(struct gs_stage_surface));
+	surf->device = device;
+	surf->format = color_format;
+	surf->width = width;
+	surf->height = height;
+	surf->gl_format = convert_gs_format(color_format);
+	surf->gl_internal_format = convert_gs_internal_format(color_format);
+	surf->gl_type = get_gl_format_type(color_format);
+	surf->bytes_per_pixel = gs_get_format_bpp(color_format) / 8;
+
+	if (!create_pixel_pack_buffer_write(surf)) {
+		blog(LOG_ERROR, "device_stagesurface_create_write (GL) failed");
 		gs_stagesurface_destroy(surf);
 		return NULL;
 	}
@@ -189,6 +239,35 @@ failed:
 
 #endif
 
+void device_stage_texture_write(gs_device_t *device, gs_texture_t *dst,
+				gs_stagesurf_t *src)
+{
+	struct gs_texture_2d *tex2d = (struct gs_texture_2d *)dst;
+	if (!can_stage(src, tex2d))
+		goto failed;
+
+	if (!gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, src->pack_buffer))
+		goto failed;
+	if (!gl_bind_texture(GL_TEXTURE_2D, tex2d->base.texture))
+		goto failed;
+
+	glTexImage2D(GL_TEXTURE_2D, 0, dst->gl_internal_format, src->width,
+		     src->height, 0, dst->gl_format, dst->gl_type, 0);
+	if (!gl_success("glTexImage2D"))
+		goto failed;
+
+	gl_bind_texture(GL_TEXTURE_2D, 0);
+	gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, 0);
+	return;
+
+failed:
+	gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, 0);
+	gl_bind_texture(GL_TEXTURE_2D, 0);
+	blog(LOG_ERROR, "device_stage_texture_write (GL) failed");
+
+	UNUSED_PARAMETER(device);
+}
+
 uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
 {
 	return stagesurf->width;
@@ -225,6 +304,26 @@ fail:
 	return false;
 }
 
+bool gs_stagesurface_map_write(gs_stagesurf_t *stagesurf, uint8_t **data,
+			       uint32_t *linesize)
+{
+	if (!gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, stagesurf->pack_buffer))
+		goto fail;
+
+	*data = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+	if (!gl_success("glMapBuffer"))
+		goto fail;
+
+	gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	*linesize = stagesurf->bytes_per_pixel * stagesurf->width;
+	return true;
+
+fail:
+	blog(LOG_ERROR, "stagesurf_map_write (GL) failed");
+	return false;
+}
+
 void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 {
 	if (!gl_bind_buffer(GL_PIXEL_PACK_BUFFER, stagesurf->pack_buffer))
@@ -234,4 +333,15 @@ void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 	gl_success("glUnmapBuffer");
 
 	gl_bind_buffer(GL_PIXEL_PACK_BUFFER, 0);
+}
+
+void gs_stagesurface_unmap_write(gs_stagesurf_t *stagesurf)
+{
+	if (!gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, stagesurf->pack_buffer))
+		return;
+
+	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+	gl_success("glUnmapBuffer");
+
+	gl_bind_buffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }

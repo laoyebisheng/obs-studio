@@ -582,6 +582,9 @@ EXPORT void gs_viewport_pop(void);
 
 EXPORT void gs_texture_set_image(gs_texture_t *tex, const uint8_t *data,
 				 uint32_t linesize, bool invert);
+EXPORT void gs_texture_set_staged_image(gs_stagesurf_t *stagesurf,
+					gs_texture_t *tex, const uint8_t *data,
+					uint32_t linesize, bool invert);
 EXPORT void gs_cubetexture_set_image(gs_texture_t *cubetex, uint32_t side,
 				     const void *data, uint32_t linesize,
 				     bool invert);
@@ -621,6 +624,9 @@ EXPORT gs_zstencil_t *gs_zstencil_create(uint32_t width, uint32_t height,
 EXPORT gs_stagesurf_t *
 gs_stagesurface_create(uint32_t width, uint32_t height,
 		       enum gs_color_format color_format);
+EXPORT gs_stagesurf_t *
+gs_stagesurface_create_write(uint32_t width, uint32_t height,
+			     enum gs_color_format color_format);
 
 EXPORT gs_samplerstate_t *
 gs_samplerstate_create(const struct gs_sampler_info *info);
@@ -666,6 +672,7 @@ EXPORT void gs_copy_texture_region(gs_texture_t *dst, uint32_t dst_x,
 				   uint32_t src_x, uint32_t src_y,
 				   uint32_t src_w, uint32_t src_h);
 EXPORT void gs_stage_texture(gs_stagesurf_t *dst, gs_texture_t *src);
+EXPORT void gs_stage_texture_write(gs_texture_t *dst, gs_stagesurf_t *src);
 
 EXPORT void gs_begin_scene(void);
 EXPORT void gs_draw(enum gs_draw_mode draw_mode, uint32_t start_vert,
@@ -756,7 +763,10 @@ EXPORT enum gs_color_format
 gs_stagesurface_get_color_format(const gs_stagesurf_t *stagesurf);
 EXPORT bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 				uint32_t *linesize);
+EXPORT bool gs_stagesurface_map_write(gs_stagesurf_t *stagesurf, uint8_t **data,
+				      uint32_t *linesize);
 EXPORT void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf);
+EXPORT void gs_stagesurface_unmap_write(gs_stagesurf_t *stagesurf);
 
 EXPORT void gs_zstencil_destroy(gs_zstencil_t *zstencil);
 

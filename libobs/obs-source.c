@@ -581,6 +581,12 @@ void obs_source_destroy(struct obs_source *source)
 	for (size_t c = 0; c < MAX_AV_PLANES; c++) {
 		gs_texture_destroy(source->async_textures[c]);
 		gs_texture_destroy(source->async_prev_textures[c]);
+		for (size_t i = 0; i < NUM_TEXTURES; i++) {
+			gs_stagesurf_t *stagesurf =
+				source->async_upload_surfaces[i][c];
+			if (stagesurf)
+				gs_stagesurface_destroy(stagesurf);
+		}
 	}
 	if (source->filter_texrender)
 		gs_texrender_destroy(source->filter_texrender);
@@ -1632,6 +1638,11 @@ bool set_async_texture_size(struct obs_source *source,
 	gs_enter_context(obs->video.graphics);
 
 	for (size_t c = 0; c < MAX_AV_PLANES; c++) {
+		for (size_t i = 0; i < NUM_TEXTURES; i++) {
+			gs_stagesurface_destroy(
+				source->async_upload_surfaces[i][c]);
+			source->async_upload_surfaces[i][c] = NULL;
+		}
 		gs_texture_destroy(source->async_textures[c]);
 		source->async_textures[c] = NULL;
 		gs_texture_destroy(source->async_prev_textures[c]);
@@ -1651,16 +1662,33 @@ bool set_async_texture_size(struct obs_source *source,
 		source->async_texrender =
 			gs_texrender_create(format, GS_ZS_NONE);
 
-		for (int c = 0; c < source->async_channel_count; ++c)
+		for (int c = 0; c < source->async_channel_count; c++) {
+			for (size_t i = 0; i < NUM_TEXTURES; i++) {
+				source->async_upload_surfaces[i][c] =
+					gs_stagesurface_create_write(
+						source->async_convert_width[c],
+						source->async_convert_height[c],
+						source->async_texture_formats[c]);
+			}
+
 			source->async_textures[c] = gs_texture_create(
 				source->async_convert_width[c],
 				source->async_convert_height[c],
 				source->async_texture_formats[c], 1, NULL,
 				GS_DYNAMIC);
+		}
 	} else {
-		source->async_textures[0] =
-			gs_texture_create(frame->width, frame->height, format,
-					  1, NULL, GS_DYNAMIC);
+		for (int c = 0; c < source->async_channel_count; c++) {
+			for (size_t i = 0; i < NUM_TEXTURES; i++) {
+				source->async_upload_surfaces[i][c] =
+					gs_stagesurface_create_write(
+						frame->width, frame->height,
+						format);
+			}
+		}
+
+		source->async_textures[0] = gs_texture_create(
+			frame->width, frame->height, format, 1, NULL, 0);
 	}
 
 	if (deinterlacing_enabled(source))
@@ -1671,7 +1699,8 @@ bool set_async_texture_size(struct obs_source *source,
 	return source->async_textures[0] != NULL;
 }
 
-static void upload_raw_frame(gs_texture_t *tex[MAX_AV_PLANES],
+static void upload_raw_frame(gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
+			     gs_texture_t *tex[MAX_AV_PLANES],
 			     const struct obs_source_frame *frame)
 {
 	switch (get_convert_type(frame->format, frame->full_range)) {
@@ -1689,8 +1718,9 @@ static void upload_raw_frame(gs_texture_t *tex[MAX_AV_PLANES],
 	case CONVERT_444_A_PACK:
 		for (size_t c = 0; c < MAX_AV_PLANES; c++) {
 			if (tex[c])
-				gs_texture_set_image(tex[c], frame->data[c],
-						     frame->linesize[c], false);
+				gs_texture_set_staged_image(
+					stagesurf[c], tex[c], frame->data[c],
+					frame->linesize[c], false);
 		}
 		break;
 
@@ -1770,6 +1800,7 @@ static inline void set_eparami(gs_effect_t *effect, const char *name, int val)
 
 static bool update_async_texrender(struct obs_source *source,
 				   const struct obs_source_frame *frame,
+				   gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
 				   gs_texture_t *tex[MAX_AV_PLANES],
 				   gs_texrender_t *texrender)
 {
@@ -1777,7 +1808,7 @@ static bool update_async_texrender(struct obs_source *source,
 
 	gs_texrender_reset(texrender);
 
-	upload_raw_frame(tex, frame);
+	upload_raw_frame(stagesurf, tex, frame);
 
 	uint32_t cx = source->async_width;
 	uint32_t cy = source->async_height;
@@ -1857,15 +1888,17 @@ static bool update_async_texrender(struct obs_source *source,
 
 bool update_async_texture(struct obs_source *source,
 			  const struct obs_source_frame *frame,
+			  gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
 			  gs_texture_t *tex, gs_texrender_t *texrender)
 {
-	gs_texture_t *tex3[MAX_AV_PLANES] = {tex,  NULL, NULL, NULL,
+	gs_texture_t *tex8[MAX_AV_PLANES] = {tex,  NULL, NULL, NULL,
 					     NULL, NULL, NULL, NULL};
-	return update_async_textures(source, frame, tex3, texrender);
+	return update_async_textures(source, frame, stagesurf, tex8, texrender);
 }
 
 bool update_async_textures(struct obs_source *source,
 			   const struct obs_source_frame *frame,
+			   gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
 			   gs_texture_t *tex[MAX_AV_PLANES],
 			   gs_texrender_t *texrender)
 {
@@ -1874,12 +1907,14 @@ bool update_async_textures(struct obs_source *source,
 	source->async_flip = frame->flip;
 
 	if (source->async_gpu_conversion && texrender)
-		return update_async_texrender(source, frame, tex, texrender);
+		return update_async_texrender(source, frame, stagesurf, tex,
+					      texrender);
 
 	type = get_convert_type(frame->format, frame->full_range);
 	if (type == CONVERT_NONE) {
-		gs_texture_set_image(tex[0], frame->data[0], frame->linesize[0],
-				     false);
+		gs_texture_set_staged_image(stagesurf[0], tex[0],
+					    frame->data[0], frame->linesize[0],
+					    false);
 		return true;
 	}
 
@@ -1940,9 +1975,13 @@ static void obs_source_update_async_video(obs_source_t *source)
 			}
 
 			if (source->async_update_texture) {
-				update_async_textures(source, frame,
-						      source->async_textures,
-						      source->async_texrender);
+				const int cur_texture = obs->video.cur_texture;
+				update_async_textures(
+					source, frame,
+					source->async_upload_surfaces
+						[cur_texture],
+					source->async_textures,
+					source->async_texrender);
 				source->async_update_texture = false;
 			}
 
@@ -2741,7 +2780,9 @@ obs_source_preload_video_internal(obs_source_t *source,
 
 	copy_frame_data(source->async_preload_frame, frame);
 	set_async_texture_size(source, source->async_preload_frame);
+	const int cur_texture = obs->video.cur_texture;
 	update_async_textures(source, source->async_preload_frame,
+			      source->async_upload_surfaces[cur_texture],
 			      source->async_textures, source->async_texrender);
 
 	source->last_frame_ts = frame->timestamp;

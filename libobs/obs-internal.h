@@ -628,6 +628,7 @@ struct obs_source {
 	float balance;
 
 	/* async video data */
+	gs_stagesurf_t *async_upload_surfaces[NUM_TEXTURES][MAX_AV_PLANES];
 	gs_texture_t *async_textures[MAX_AV_PLANES];
 	gs_texrender_t *async_texrender;
 	struct obs_source_frame *cur_async_frame;
@@ -802,9 +803,11 @@ extern struct obs_source_frame *filter_async_video(obs_source_t *source,
 						   struct obs_source_frame *in);
 extern bool update_async_texture(struct obs_source *source,
 				 const struct obs_source_frame *frame,
+				 gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
 				 gs_texture_t *tex, gs_texrender_t *texrender);
 extern bool update_async_textures(struct obs_source *source,
 				  const struct obs_source_frame *frame,
+				  gs_stagesurf_t *stagesurf[MAX_AV_PLANES],
 				  gs_texture_t *tex[MAX_AV_PLANES],
 				  gs_texrender_t *texrender);
 extern bool set_async_texture_size(struct obs_source *source,

@@ -1166,6 +1166,46 @@ void gs_texture_set_image(gs_texture_t *tex, const uint8_t *data,
 	gs_texture_unmap(tex);
 }
 
+void gs_texture_set_staged_image(gs_stagesurf_t *stagesurf, gs_texture_t *tex,
+				 const uint8_t *data, uint32_t linesize,
+				 bool flip)
+{
+	uint8_t *ptr;
+	uint32_t linesize_out;
+	uint32_t row_copy;
+	int32_t height;
+	int32_t y;
+
+	if (!gs_valid_p2("gs_texture_set_staged_image", tex, data))
+		return;
+
+	height = (int32_t)gs_texture_get_height(tex);
+
+	if (!gs_stagesurface_map_write(stagesurf, &ptr, &linesize_out))
+		return;
+
+	row_copy = (linesize < linesize_out) ? linesize : linesize_out;
+
+	if (flip) {
+		for (y = height - 1; y >= 0; y--)
+			memcpy(ptr + (uint32_t)y * linesize_out,
+			       data + (uint32_t)(height - y - 1) * linesize,
+			       row_copy);
+
+	} else if (linesize == linesize_out) {
+		memcpy(ptr, data, row_copy * height);
+
+	} else {
+		for (y = 0; y < height; y++)
+			memcpy(ptr + (uint32_t)y * linesize_out,
+			       data + (uint32_t)y * linesize, row_copy);
+	}
+
+	gs_stagesurface_unmap_write(stagesurf);
+
+	gs_stage_texture_write(tex, stagesurf);
+}
+
 void gs_cubetexture_set_image(gs_texture_t *cubetex, uint32_t side,
 			      const void *data, uint32_t linesize, bool invert)
 {
@@ -1421,6 +1461,18 @@ gs_stagesurf_t *gs_stagesurface_create(uint32_t width, uint32_t height,
 		return NULL;
 
 	return graphics->exports.device_stagesurface_create(
+		graphics->device, width, height, color_format);
+}
+
+gs_stagesurf_t *gs_stagesurface_create_write(uint32_t width, uint32_t height,
+					     enum gs_color_format color_format)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_stagesurface_create_write"))
+		return NULL;
+
+	return graphics->exports.device_stagesurface_create_write(
 		graphics->device, width, height, color_format);
 }
 
@@ -1726,6 +1778,17 @@ void gs_stage_texture(gs_stagesurf_t *dst, gs_texture_t *src)
 		return;
 
 	graphics->exports.device_stage_texture(graphics->device, dst, src);
+}
+
+void gs_stage_texture_write(gs_texture_t *dst, gs_stagesurf_t *src)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_stage_texture_write"))
+		return;
+
+	graphics->exports.device_stage_texture_write(graphics->device, dst,
+						     src);
 }
 
 void gs_begin_scene(void)
@@ -2442,6 +2505,19 @@ bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data,
 	return graphics->exports.gs_stagesurface_map(stagesurf, data, linesize);
 }
 
+bool gs_stagesurface_map_write(gs_stagesurf_t *stagesurf, uint8_t **data,
+			       uint32_t *linesize)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid_p3("gs_stagesurface_map_write", stagesurf, data,
+			 linesize))
+		return 0;
+
+	return graphics->exports.gs_stagesurface_map_write(stagesurf, data,
+							   linesize);
+}
+
 void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 {
 	graphics_t *graphics = thread_graphics;
@@ -2450,6 +2526,16 @@ void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 		return;
 
 	graphics->exports.gs_stagesurface_unmap(stagesurf);
+}
+
+void gs_stagesurface_unmap_write(gs_stagesurf_t *stagesurf)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid_p("gs_stagesurface_unmap_write", stagesurf))
+		return;
+
+	graphics->exports.gs_stagesurface_unmap_write(stagesurf);
 }
 
 void gs_zstencil_destroy(gs_zstencil_t *zstencil)

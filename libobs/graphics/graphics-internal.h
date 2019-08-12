@@ -59,6 +59,9 @@ struct gs_exports {
 	gs_stagesurf_t *(*device_stagesurface_create)(
 		gs_device_t *device, uint32_t width, uint32_t height,
 		enum gs_color_format color_format);
+	gs_stagesurf_t *(*device_stagesurface_create_write)(
+		gs_device_t *device, uint32_t width, uint32_t height,
+		enum gs_color_format color_format);
 	gs_samplerstate_t *(*device_samplerstate_create)(
 		gs_device_t *device, const struct gs_sampler_info *info);
 	gs_shader_t *(*device_vertexshader_create)(gs_device_t *device,
@@ -114,6 +117,9 @@ struct gs_exports {
 					   uint32_t src_w, uint32_t src_h);
 	void (*device_stage_texture)(gs_device_t *device, gs_stagesurf_t *dst,
 				     gs_texture_t *src);
+	void (*device_stage_texture_write)(gs_device_t *device,
+					   gs_texture_t *dst,
+					   gs_stagesurf_t *src);
 	void (*device_begin_scene)(gs_device_t *device);
 	void (*device_draw)(gs_device_t *device, enum gs_draw_mode draw_mode,
 			    uint32_t start_vert, uint32_t num_verts);
@@ -198,7 +204,10 @@ struct gs_exports {
 		const gs_stagesurf_t *stagesurf);
 	bool (*gs_stagesurface_map)(gs_stagesurf_t *stagesurf, uint8_t **data,
 				    uint32_t *linesize);
+	bool (*gs_stagesurface_map_write)(gs_stagesurf_t *stagesurf,
+					  uint8_t **data, uint32_t *linesize);
 	void (*gs_stagesurface_unmap)(gs_stagesurf_t *stagesurf);
+	void (*gs_stagesurface_unmap_write)(gs_stagesurf_t *stagesurf);
 
 	void (*gs_zstencil_destroy)(gs_zstencil_t *zstencil);
 
