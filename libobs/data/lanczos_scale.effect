@@ -22,21 +22,38 @@ struct VertData {
 	float2 uv  : TEXCOORD0;
 };
 
-struct VertOut {
-	float2 uv : TEXCOORD0;
+struct FragTexPos {
+	float2 uv  : TEXCOORD0;
 	float4 pos : POSITION;
 };
 
-struct FragData {
+struct FragTex {
 	float2 uv : TEXCOORD0;
 };
 
-VertOut VSDefault(VertData v_in)
+FragTexPos VSDefault(VertData v_in)
 {
-	VertOut vert_out;
+	FragTexPos vert_out;
 	vert_out.uv  = v_in.uv * base_dimension;
 	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
 
+	return vert_out;
+}
+
+FragTexPos VSTexPos(uint id : VERTEXID)
+{
+	float idHigh = float(id >> 1);
+	float idLow = float(id & uint(1));
+
+	float x = idHigh * 4.0 - 1.0;
+	float y = idLow * 4.0 - 1.0;
+
+	float u = idHigh * 2.0;
+	float v = obs_glsl_compile ? (idLow * 2.0) : (1.0 - idLow * 2.0);
+
+	FragTexPos vert_out;
+	vert_out.uv = float2(u, v) * base_dimension;
+	vert_out.pos = float4(x, y, 0.0, 1.0);
 	return vert_out;
 }
 
@@ -98,7 +115,7 @@ float4 undistort_line(float3 xpos012, float3 xpos345, float ypos, float3 rowtap0
 		undistort_pixel(xpos345.z, ypos) * rowtap345.z;
 }
 
-float4 DrawLanczos(FragData f_in, bool undistort)
+float4 DrawLanczos(FragTex f_in, bool undistort)
 {
 	float2 pos = f_in.uv;
 	float2 pos2 = floor(pos - 0.5) + 0.5;
@@ -185,17 +202,17 @@ float4 DrawLanczos(FragData f_in, bool undistort)
 	return total;
 }
 
-float4 PSDrawLanczosRGBA(FragData f_in, bool undistort) : TARGET
+float4 PSDrawLanczosRGBA(FragTex f_in, bool undistort) : TARGET
 {
 	return DrawLanczos(f_in, undistort);
 }
 
-float4 PSDrawLanczosRGBADivide(FragData f_in) : TARGET
+float4 PSDrawLanczosRGBADivide(FragTex f_in) : TARGET
 {
 	float4 rgba = DrawLanczos(f_in, false);
-	float alpha = rgba.a;
-	float multiplier = (alpha > 0.0) ? (1.0 / alpha) : 0.0;
-	return float4(rgba.rgb * multiplier, alpha);
+	float alpha_i = max(0.0, 1.0 / rgba.a); // convert NaN to 0
+	rgba.rgb = rgba.rgb * alpha_i;
+	return rgba;
 }
 
 technique Draw
@@ -207,11 +224,20 @@ technique Draw
 	}
 }
 
+technique DrawFullscreen
+{
+	pass
+	{
+		vertex_shader = VSTexPos(id);
+		pixel_shader  = PSDrawLanczosRGBA(f_in, false);
+	}
+}
+
 technique DrawAlphaDivide
 {
 	pass
 	{
-		vertex_shader = VSDefault(v_in);
+		vertex_shader = VSTexPos(id);
 		pixel_shader  = PSDrawLanczosRGBADivide(f_in);
 	}
 }
@@ -220,7 +246,7 @@ technique DrawUndistort
 {
 	pass
 	{
-		vertex_shader = VSDefault(v_in);
+		vertex_shader = VSTexPos(id);
 		pixel_shader  = PSDrawLanczosRGBA(f_in, true);
 	}
 }

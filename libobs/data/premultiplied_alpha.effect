@@ -23,9 +23,9 @@ VertInOut VSDefault(VertInOut vert_in)
 float4 PSDraw(VertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(def_sampler, vert_in.uv);
-	if (rgba.a > 0.0)
-		rgba.rgb /= rgba.a;
-	return saturate(rgba);
+	float alpha_i = max(0.0, 1.0 / rgba.a); // convert NaN to 0
+	rgba.rgb = rgba.rgb * alpha_i;
+	return rgba;
 }
 
 technique Draw

@@ -222,7 +222,7 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 		    (height == video->base_height))
 			return texture;
 
-		tech = gs_effect_get_technique(effect, "Draw");
+		tech = gs_effect_get_technique(effect, "DrawFullscreen");
 	}
 
 	profile_start(render_output_texture_name);
@@ -257,7 +257,7 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 	passes = gs_technique_begin(tech);
 	for (i = 0; i < passes; i++) {
 		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(texture, 0, width, height);
+		gs_draw(GS_TRIS, 0, 3);
 		gs_technique_end_pass(tech);
 	}
 	gs_technique_end(tech);

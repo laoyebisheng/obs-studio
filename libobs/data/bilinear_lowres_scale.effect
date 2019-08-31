@@ -17,11 +17,37 @@ struct VertData {
 	float2 uv  : TEXCOORD0;
 };
 
-VertData VSDefault(VertData v_in)
+struct FragTexPos {
+	float2 uv  : TEXCOORD0;
+	float4 pos : POSITION;
+};
+
+struct FragTex {
+	float2 uv : TEXCOORD0;
+};
+
+FragTexPos VSDefault(VertData v_in)
 {
-	VertData vert_out;
-	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	FragTexPos vert_out;
 	vert_out.uv  = v_in.uv;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	return vert_out;
+}
+
+FragTexPos VSTexPos(uint id : VERTEXID)
+{
+	float idHigh = float(id >> 1);
+	float idLow = float(id & uint(1));
+
+	float x = idHigh * 4.0 - 1.0;
+	float y = idLow * 4.0 - 1.0;
+
+	float u = idHigh * 2.0;
+	float v = obs_glsl_compile ? (idLow * 2.0) : (1.0 - idLow * 2.0);
+
+	FragTexPos vert_out;
+	vert_out.uv = float2(u, v);
+	vert_out.pos = float4(x, y, 0.0, 1.0);
 	return vert_out;
 }
 
@@ -30,9 +56,8 @@ float4 pixel(float2 uv)
 	return image.Sample(textureSampler, uv);
 }
 
-float4 DrawLowresBilinear(VertData v_in)
+float4 DrawLowresBilinear(float2 uv)
 {
-	float2 uv = v_in.uv;
 	float2 stepxy  = float2(ddx(uv.x), ddy(uv.y));
 	float2 stepxy1 = stepxy * 0.0625;
 	float2 stepxy3 = stepxy * 0.1875;
@@ -52,17 +77,17 @@ float4 DrawLowresBilinear(VertData v_in)
 	return out_color * 0.125;
 }
 
-float4 PSDrawLowresBilinearRGBA(VertData v_in) : TARGET
+float4 PSDrawLowresBilinearRGBA(FragTex f_in) : TARGET
 {
-	return DrawLowresBilinear(v_in);
+	return DrawLowresBilinear(f_in.uv);
 }
 
-float4 PSDrawLowresBilinearRGBADivide(VertData v_in) : TARGET
+float4 PSDrawLowresBilinearRGBADivide(FragTex f_in) : TARGET
 {
-	float4 rgba = DrawLowresBilinear(v_in);
-	float alpha = rgba.a;
-	float multiplier = (alpha > 0.0) ? (1.0 / alpha) : 0.0;
-	return float4(rgba.rgb * multiplier, alpha);
+	float4 rgba = DrawLowresBilinear(f_in.uv);
+	float alpha_i = max(0.0, 1.0 / rgba.a); // convert NaN to 0
+	rgba.rgb = rgba.rgb * alpha_i;
+	return rgba;
 }
 
 technique Draw
@@ -70,7 +95,16 @@ technique Draw
 	pass
 	{
 		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSDrawLowresBilinearRGBA(v_in);
+		pixel_shader  = PSDrawLowresBilinearRGBA(f_in);
+	}
+}
+
+technique DrawFullscreen
+{
+	pass
+	{
+		vertex_shader = VSTexPos(id);
+		pixel_shader  = PSDrawLowresBilinearRGBA(f_in);
 	}
 }
 
@@ -78,8 +112,8 @@ technique DrawAlphaDivide
 {
 	pass
 	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSDrawLowresBilinearRGBADivide(v_in);
+		vertex_shader = VSTexPos(id);
+		pixel_shader  = PSDrawLowresBilinearRGBADivide(f_in);
 	}
 }
 

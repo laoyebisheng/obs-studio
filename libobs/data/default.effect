@@ -7,30 +7,56 @@ sampler_state def_sampler {
 	AddressV = Clamp;
 };
 
-struct VertInOut {
+struct VertData {
 	float4 pos : POSITION;
 	float2 uv  : TEXCOORD0;
 };
 
-VertInOut VSDefault(VertInOut vert_in)
+struct FragTexPos {
+	float2 uv  : TEXCOORD0;
+	float4 pos : POSITION;
+};
+
+struct FragTex {
+	float2 uv : TEXCOORD0;
+};
+
+FragTexPos VSDefault(VertData vert_in)
 {
-	VertInOut vert_out;
-	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	FragTexPos vert_out;
 	vert_out.uv  = vert_in.uv;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
 	return vert_out;
 }
 
-float4 PSDrawBare(VertInOut vert_in) : TARGET
+FragTexPos VSTexPos(uint id : VERTEXID)
 {
-	return image.Sample(def_sampler, vert_in.uv);
+	float idHigh = float(id >> 1);
+	float idLow = float(id & uint(1));
+
+	float x = idHigh * 4.0 - 1.0;
+	float y = idLow * 4.0 - 1.0;
+
+	float u = idHigh * 2.0;
+	float v = obs_glsl_compile ? (idLow * 2.0) : (1.0 - idLow * 2.0);
+
+	FragTexPos vert_out;
+	vert_out.uv = float2(u, v);
+	vert_out.pos = float4(x, y, 0.0, 1.0);
+	return vert_out;
 }
 
-float4 PSDrawAlphaDivide(VertInOut vert_in) : TARGET
+float4 PSDrawBare(FragTex frag_in) : TARGET
 {
-	float4 rgba = image.Sample(def_sampler, vert_in.uv);
-	float alpha = rgba.a;
-	float multiplier = (alpha > 0.0) ? (1.0 / alpha) : 0.0;
-	return float4(rgba.rgb * multiplier, alpha);
+	return image.Sample(def_sampler, frag_in.uv);
+}
+
+float4 PSDrawAlphaDivide(FragTex frag_in) : TARGET
+{
+	float4 rgba = image.Sample(def_sampler, frag_in.uv);
+	float alpha_i = max(0.0, 1.0 / rgba.a); // convert NaN to 0
+	rgba.rgb = rgba.rgb * alpha_i;
+	return rgba;
 }
 
 technique Draw
@@ -38,7 +64,16 @@ technique Draw
 	pass
 	{
 		vertex_shader = VSDefault(vert_in);
-		pixel_shader  = PSDrawBare(vert_in);
+		pixel_shader  = PSDrawBare(frag_in);
+	}
+}
+
+technique DrawFullscreen
+{
+	pass
+	{
+		vertex_shader = VSTexPos(id);
+		pixel_shader  = PSDrawBare(frag_in);
 	}
 }
 
@@ -46,7 +81,7 @@ technique DrawAlphaDivide
 {
 	pass
 	{
-		vertex_shader = VSDefault(vert_in);
-		pixel_shader  = PSDrawAlphaDivide(vert_in);
+		vertex_shader = VSTexPos(id);
+		pixel_shader  = PSDrawAlphaDivide(frag_in);
 	}
 }
