@@ -1803,7 +1803,7 @@ static bool update_async_texrender(struct obs_source *source,
 		select_conversion_technique(frame->format, frame->full_range);
 	gs_technique_t *tech = gs_effect_get_technique(conv, tech_name);
 
-	const bool success = gs_texrender_begin(texrender, cx, cy);
+	const bool success = gs_texrender_begin_no_srgb(texrender, cx, cy);
 
 	if (success) {
 		gs_enable_blending(false);

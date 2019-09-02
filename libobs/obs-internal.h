@@ -775,15 +775,15 @@ convert_video_format(enum video_format format)
 {
 	switch (format) {
 	case VIDEO_FORMAT_RGBA:
-		return GS_RGBA;
+		return GS_RGBA_SRGB;
 	case VIDEO_FORMAT_BGRA:
 	case VIDEO_FORMAT_I40A:
 	case VIDEO_FORMAT_I42A:
 	case VIDEO_FORMAT_YUVA:
 	case VIDEO_FORMAT_AYUV:
-		return GS_BGRA;
+		return GS_BGRA_SRGB;
 	default:
-		return GS_BGRX;
+		return GS_BGRX_SRGB;
 	}
 }
 

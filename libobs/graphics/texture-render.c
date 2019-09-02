@@ -87,7 +87,8 @@ static bool texrender_resetbuffer(gs_texrender_t *texrender, uint32_t cx,
 	return true;
 }
 
-bool gs_texrender_begin(gs_texrender_t *texrender, uint32_t cx, uint32_t cy)
+static bool gs_texrender_begin_internal(gs_texrender_t *texrender, uint32_t cx,
+					uint32_t cy, bool srgb)
 {
 	if (!texrender || texrender->rendered)
 		return false;
@@ -109,11 +110,26 @@ bool gs_texrender_begin(gs_texrender_t *texrender, uint32_t cx, uint32_t cy)
 
 	texrender->prev_target = gs_get_render_target();
 	texrender->prev_zs = gs_get_zstencil_target();
-	gs_set_render_target(texrender->target, texrender->zs);
+	if (srgb) {
+		gs_set_render_target(texrender->target, texrender->zs);
+	} else {
+		gs_set_render_target_no_srgb(texrender->target, texrender->zs);
+	}
 
 	gs_set_viewport(0, 0, texrender->cx, texrender->cy);
 
 	return true;
+}
+
+bool gs_texrender_begin(gs_texrender_t *texrender, uint32_t cx, uint32_t cy)
+{
+	return gs_texrender_begin_internal(texrender, cx, cy, true);
+}
+
+bool gs_texrender_begin_no_srgb(gs_texrender_t *texrender, uint32_t cx,
+				uint32_t cy)
+{
+	return gs_texrender_begin_internal(texrender, cx, cy, false);
 }
 
 void gs_texrender_end(gs_texrender_t *texrender)

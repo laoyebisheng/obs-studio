@@ -234,7 +234,7 @@ void set_deinterlace_texture_size(obs_source_t *source)
 {
 	if (source->async_gpu_conversion) {
 		source->async_prev_texrender =
-			gs_texrender_create(GS_BGRX, GS_ZS_NONE);
+			gs_texrender_create(GS_BGRX_SRGB, GS_ZS_NONE);
 
 		for (int c = 0; c < source->async_channel_count; c++)
 			source->async_prev_textures[c] = gs_texture_create(

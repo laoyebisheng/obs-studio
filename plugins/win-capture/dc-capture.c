@@ -6,9 +6,9 @@
 static inline void init_textures(struct dc_capture *capture)
 {
 	if (capture->compatibility)
-		capture->texture = gs_texture_create(capture->width,
-						     capture->height, GS_BGRA,
-						     1, NULL, GS_DYNAMIC);
+		capture->texture =
+			gs_texture_create(capture->width, capture->height,
+					  GS_BGRA_SRGB, 1, NULL, GS_DYNAMIC);
 	else
 		capture->texture =
 			gs_texture_create_gdi(capture->width, capture->height);
