@@ -1,0 +1,118 @@
+uniform float4x4 ViewProj;
+uniform texture2d image;
+
+uniform float4x4 yuv_mat = { 0.182586,  0.614231,  0.062007, 0.062745,
+                            -0.100644, -0.338572,  0.439216, 0.501961,
+                             0.439216, -0.398942, -0.040274, 0.501961,
+                             0.000000,  0.000000,  0.000000, 1.000000 };
+uniform float4x4 yuv_mat_inv = { 1.164384,  0.000000,  1.792741, -0.972945,
+                                 1.164384, -0.213249, -0.532909,  0.301483,
+                                 1.164384,  2.112402,  0.000000, -1.133402,
+                                 0.000000,  0.000000,  0.000000,  1.000000 };
+
+uniform float4 color;
+uniform float contrast;
+uniform float brightness;
+uniform float gamma;
+
+uniform float3 chroma_key;
+uniform float hue_angle;
+uniform float cull_radius;
+
+sampler_state textureSampler {
+	Filter    = Linear;
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+};
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v_in)
+{
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+float4 CalcColor(float4 rgba)
+{
+	return float4(pow(rgba.rgb, float3(gamma, gamma, gamma)) * contrast + brightness, rgba.a);
+}
+
+float2 RotateVector(float2 v, float2 angle)
+{
+	float cos_theta = cos(angle);
+	float sin_theta = sin(angle);
+	float2 rotated = float2(cos_theta * v.x - sin_theta * v.y, sin_theta * v.x + cos_theta * v.y);
+	return rotated;
+}
+
+float GetDistanceFromBoundary(float2 chroma_xz, float2 boundary)
+{
+	float multiplier = dot(chroma_xz, boundary);
+	return distance(chroma_xz, multiplier * boundary);
+}
+
+float4 RemoveColorKey(float4 rgba)
+{
+	float4 yuva = float4(mul(float4(rgba.rgb, 1.0), yuv_mat).xyz, rgba.a);
+	float2 chroma_cbcr = yuva.yz * 2.0 - 1.0;
+	float2 chroma_key_cbcr = chroma_key.yz * 2.0 - 1.0;
+	float diff = distance(chroma_key_cbcr, chroma_cbcr);
+	if (diff < cull_radius)
+		return 0.0;
+	float cos_hue_angle = cos(hue_angle);
+	float angle = atan2(chroma_key_cbcr.y, chroma_key_cbcr.x);
+	float2 chroma_xz = RotateVector(chroma_cbcr, -angle);
+	float saturation = length(chroma_xz);
+	float chroma_x_normalized = chroma_xz.x / saturation;
+	if (chroma_x_normalized <= cos_hue_angle)
+		return rgba;
+	float saturation_key = length(chroma_key_cbcr);
+	float sin_hue_angle = sin(hue_angle);
+	float key_distance_from_boundary = saturation_key * sin_hue_angle;
+	float distance_from_boundary_pos = GetDistanceFromBoundary(chroma_xz, float2(cos_hue_angle, sin_hue_angle));
+	float distance_from_boundary_neg = GetDistanceFromBoundary(chroma_xz, float2(cos_hue_angle, -sin_hue_angle));
+	float distance_from_boundary = min(distance_from_boundary_pos, distance_from_boundary_neg);
+	rgba.a *= saturate(1.0 - distance_from_boundary / key_distance_from_boundary);
+
+	//float kfg_key = saturation_key;
+	//float kfg_muliplier = 
+	//float kfg = chroma_xz.x - abs(chroma_xz.y) / tan(hue_angle);
+	//float kfg_multiplier = chroma_key.x / kfg;
+	//float y = yuva.x - kfg_multiplier * kfg;
+	float x_prime = abs(chroma_xz.y) / tan(hue_angle);
+	float y = yuva.x * (1.0 - ((chroma_xz.x - x_prime) / saturation_key));
+	
+	chroma_xz.x = abs(chroma_xz.y) / tan(hue_angle);
+	float2 chroma_cbcr_new = RotateVector(chroma_xz, angle);
+	float3 yuv = float3(y, chroma_cbcr_new * 0.5 + 0.5);
+	rgba.rgb = mul(float4(yuv, 1.0), yuv_mat_inv).rgb;
+
+	return rgba;
+}
+
+float4 ProcessChromaKey(float4 rgba, VertData v_in)
+{
+	rgba = RemoveColorKey(rgba);
+	return CalcColor(rgba);
+}
+
+float4 PSChromaKeyRGBA(VertData v_in) : TARGET
+{
+	float4 rgba = image.Sample(textureSampler, v_in.uv);
+	return ProcessChromaKey(rgba, v_in);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader  = PSChromaKeyRGBA(v_in);
+	}
+}
