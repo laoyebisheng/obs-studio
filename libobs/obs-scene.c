@@ -523,10 +523,12 @@ static void render_item_texture(struct obs_scene_item *item)
 
 	gs_blend_state_push();
 	gs_blend_function(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
+	gs_enable_framebuffer_srgb(true);
 
 	while (gs_effect_loop(effect, tech))
-		obs_source_draw(tex, 0, 0, 0, 0, 0);
+		obs_source_draw_srgb(tex, 0, 0, 0, 0, 0);
 
+	gs_enable_framebuffer_srgb(false);
 	gs_blend_state_pop();
 
 	GS_DEBUG_MARKER_END();
