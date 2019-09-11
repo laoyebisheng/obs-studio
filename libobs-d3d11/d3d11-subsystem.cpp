@@ -80,7 +80,7 @@ static inline void make_swap_desc_common(DXGI_SWAP_CHAIN_DESC &desc,
 	memset(&desc, 0, sizeof(desc));
 	desc.BufferDesc.Width = data->cx;
 	desc.BufferDesc.Height = data->cy;
-	desc.BufferDesc.Format = ConvertGSTextureFormat(data->format);
+	desc.BufferDesc.Format = ConvertGSTextureFormatView(data->format);
 	desc.SampleDesc.Count = 1;
 	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	desc.BufferCount = num_backbuffers;
@@ -121,10 +121,26 @@ void gs_swap_chain::InitTarget(uint32_t cx, uint32_t cy)
 	if (FAILED(hr))
 		throw HRError("Failed to get swap buffer texture", hr);
 
+	D3D11_RENDER_TARGET_VIEW_DESC rtv;
+	rtv.Format = target.dxgiFormatView;
+	rtv.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	rtv.Texture2D.MipSlice = 0;
 	hr = device->device->CreateRenderTargetView(
-		target.texture, NULL, target.renderTarget[0].Assign());
+		target.texture, &rtv, target.renderTarget[0].Assign());
 	if (FAILED(hr))
 		throw HRError("Failed to create swap render target view", hr);
+	if (target.dxgiFormatView == target.dxgiFormatViewSrgb) {
+		target.renderTargetSrgb[0] = target.renderTarget[0];
+	} else {
+		rtv.Format = target.dxgiFormatViewSrgb;
+		hr = device->device->CreateRenderTargetView(
+			target.texture, &rtv,
+			target.renderTargetSrgb[0].Assign());
+		if (FAILED(hr))
+			throw HRError(
+				"Failed to create swap srgb render target view",
+				hr);
+	}
 }
 
 void gs_swap_chain::InitZStencilBuffer(uint32_t cx, uint32_t cy)
@@ -147,6 +163,7 @@ void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
 
 	target.texture.Clear();
 	target.renderTarget[0].Clear();
+	target.renderTargetSrgb[0].Clear();
 	zs.texture.Clear();
 	zs.view.Clear();
 
@@ -161,7 +178,7 @@ void gs_swap_chain::Resize(uint32_t cx, uint32_t cy)
 			cy = clientRect.bottom;
 	}
 
-	hr = swap->ResizeBuffers(numBuffers, cx, cy, target.dxgiFormat, 0);
+	hr = swap->ResizeBuffers(numBuffers, cx, cy, DXGI_FORMAT_UNKNOWN, 0);
 	if (FAILED(hr))
 		throw HRError("Failed to resize swap buffers", hr);
 
@@ -174,7 +191,11 @@ void gs_swap_chain::Init()
 	target.device = device;
 	target.isRenderTarget = true;
 	target.format = initData.format;
-	target.dxgiFormat = ConvertGSTextureFormat(initData.format);
+	target.dxgiFormatResource =
+		ConvertGSTextureFormatResource(initData.format);
+	target.dxgiFormatView = ConvertGSTextureFormatView(initData.format);
+	target.dxgiFormatViewSrgb =
+		ConvertGSTextureFormatViewSrgb(initData.format);
 	InitTarget(initData.cx, initData.cy);
 
 	zs.device = device;
@@ -1070,18 +1091,9 @@ void device_resize(gs_device_t *device, uint32_t cx, uint32_t cy)
 
 	try {
 		ID3D11RenderTargetView *renderView = NULL;
-		ID3D11DepthStencilView *depthView = NULL;
-		int i = device->curRenderSide;
-
-		device->context->OMSetRenderTargets(1, &renderView, depthView);
+		device->context->OMSetRenderTargets(1, &renderView, NULL);
 		device->curSwapChain->Resize(cx, cy);
-
-		if (device->curRenderTarget)
-			renderView = device->curRenderTarget->renderTarget[i];
-		if (device->curZStencilBuffer)
-			depthView = device->curZStencilBuffer->view;
-		device->context->OMSetRenderTargets(1, &renderView, depthView);
-
+		device->curFramebufferInvalidate = true;
 	} catch (const HRError &error) {
 		blog(LOG_ERROR, "device_resize (D3D11): %s (%08lX)", error.str,
 		     error.hr);
@@ -1444,7 +1456,8 @@ void device_load_indexbuffer(gs_device_t *device, gs_indexbuffer_t *indexbuffer)
 	device->context->IASetIndexBuffer(buffer, format, 0);
 }
 
-void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
+static void device_load_texture_internal(gs_device_t *device, gs_texture_t *tex,
+					 int unit, bool srgb)
 {
 	ID3D11ShaderResourceView *view = NULL;
 
@@ -1452,10 +1465,21 @@ void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
 		return;
 
 	if (tex)
-		view = tex->shaderRes;
+		view = srgb ? tex->shaderResSrgb : tex->shaderRes;
 
 	device->curTextures[unit] = tex;
 	device->context->PSSetShaderResources(unit, 1, &view);
+}
+
+void device_load_texture(gs_device_t *device, gs_texture_t *tex, int unit)
+{
+	return device_load_texture_internal(device, tex, unit,
+					    device->curForceSrgbTextureLoad);
+}
+
+void device_load_texture_srgb(gs_device_t *device, gs_texture_t *tex, int unit)
+{
+	return device_load_texture_internal(device, tex, unit, true);
 }
 
 void device_load_samplerstate(gs_device_t *device,
@@ -1599,26 +1623,19 @@ void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 		return;
 
 	if (tex && tex->type != GS_TEXTURE_2D) {
-		blog(LOG_ERROR, "device_set_render_target (D3D11): "
-				"texture is not a 2D texture");
+		blog(LOG_ERROR,
+		     "device_set_render_target (D3D11): texture is not a 2D texture");
 		return;
 	}
 
-	gs_texture_2d *tex2d = static_cast<gs_texture_2d *>(tex);
-	if (tex2d && !tex2d->renderTarget[0]) {
-		blog(LOG_ERROR, "device_set_render_target (D3D11): "
-				"texture is not a render target");
-		return;
+	gs_texture_2d *const tex2d = static_cast<gs_texture_2d *>(tex);
+	if (device->curRenderTarget != tex2d || device->curRenderSide != 0 ||
+	    device->curZStencilBuffer != zstencil) {
+		device->curRenderTarget = tex2d;
+		device->curRenderSide = 0;
+		device->curZStencilBuffer = zstencil;
+		device->curFramebufferInvalidate = true;
 	}
-
-	ID3D11RenderTargetView *rt = tex2d ? tex2d->renderTarget[0].Get()
-					   : nullptr;
-
-	device->curRenderTarget = tex2d;
-	device->curRenderSide = 0;
-	device->curZStencilBuffer = zstencil;
-	device->context->OMSetRenderTargets(
-		1, &rt, zstencil ? zstencil->view : nullptr);
 }
 
 void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
@@ -1644,19 +1661,27 @@ void device_set_cube_render_target(gs_device_t *device, gs_texture_t *tex,
 		return;
 	}
 
-	gs_texture_2d *tex2d = static_cast<gs_texture_2d *>(tex);
-	if (!tex2d->renderTarget[side]) {
-		blog(LOG_ERROR, "device_set_cube_render_target (D3D11): "
-				"texture is not a render target");
-		return;
+	gs_texture_2d *const tex2d = static_cast<gs_texture_2d *>(tex);
+	if (device->curRenderTarget != tex2d || device->curRenderSide != side ||
+	    device->curZStencilBuffer != zstencil) {
+		device->curRenderTarget = tex2d;
+		device->curRenderSide = side;
+		device->curZStencilBuffer = zstencil;
+		device->curFramebufferInvalidate = true;
 	}
+}
 
-	ID3D11RenderTargetView *rt = tex2d->renderTarget[0];
+void device_enable_framebuffer_srgb(gs_device_t *device, bool enable)
+{
+	if (device->curFramebufferSrgb != enable) {
+		device->curFramebufferSrgb = enable;
+		device->curFramebufferInvalidate = true;
+	}
+}
 
-	device->curRenderTarget = tex2d;
-	device->curRenderSide = side;
-	device->curZStencilBuffer = zstencil;
-	device->context->OMSetRenderTargets(1, &rt, zstencil->view);
+void device_enable_force_srgb_texture_load(gs_device_t *device, bool enable)
+{
+	device->curForceSrgbTextureLoad = enable;
 }
 
 inline void gs_device::CopyTex(ID3D11Texture2D *dst, uint32_t dst_x,
@@ -1804,6 +1829,30 @@ void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 
 		if (!device->curSwapChain && !device->curRenderTarget)
 			throw "No render target or swap chain to render to";
+
+		if (device->curFramebufferInvalidate) {
+			ID3D11RenderTargetView *rtv = nullptr;
+			if (device->curRenderTarget) {
+				const int i = device->curRenderSide;
+				rtv = device->curFramebufferSrgb
+					      ? device->curRenderTarget
+							->renderTargetSrgb[i]
+							.Get()
+					      : device->curRenderTarget
+							->renderTarget[i]
+							.Get();
+				if (!rtv) {
+					blog(LOG_ERROR,
+					     "device_draw (D3D11): texture is not a render target");
+					return;
+				}
+			}
+			ID3D11DepthStencilView *dsv = nullptr;
+			if (device->curZStencilBuffer)
+				dsv = device->curZStencilBuffer->view;
+			device->context->OMSetRenderTargets(1, &rtv, dsv);
+			device->curFramebufferInvalidate = false;
+		}
 
 		gs_effect_t *effect = gs_get_effect();
 		if (effect)

@@ -88,6 +88,8 @@ struct gs_exports {
 					gs_indexbuffer_t *indexbuffer);
 	void (*device_load_texture)(gs_device_t *device, gs_texture_t *tex,
 				    int unit);
+	void (*device_load_texture_srgb)(gs_device_t *device, gs_texture_t *tex,
+					 int unit);
 	void (*device_load_samplerstate)(gs_device_t *device,
 					 gs_samplerstate_t *samplerstate,
 					 int unit);
@@ -106,6 +108,10 @@ struct gs_exports {
 	void (*device_set_cube_render_target)(gs_device_t *device,
 					      gs_texture_t *cubetex, int side,
 					      gs_zstencil_t *zstencil);
+	void (*device_enable_framebuffer_srgb)(gs_device_t *device,
+					       bool enable);
+	void (*device_enable_force_srgb_texture_load)(gs_device_t *device,
+						      bool enable);
 	void (*device_copy_texture)(gs_device_t *device, gs_texture_t *dst,
 				    gs_texture_t *src);
 	void (*device_copy_texture_region)(gs_device_t *device,

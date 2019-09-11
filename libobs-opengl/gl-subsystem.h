@@ -86,11 +86,11 @@ static inline GLenum convert_gs_internal_format(enum gs_color_format format)
 	case GS_R8:
 		return GL_R8;
 	case GS_RGBA:
-		return GL_RGBA;
+		return GL_SRGB8_ALPHA8;
 	case GS_BGRX:
-		return GL_RGB;
+		return GL_SRGB8;
 	case GS_BGRA:
-		return GL_RGBA;
+		return GL_SRGB8_ALPHA8;
 	case GS_R10G10B10A2:
 		return GL_RGB10_A2;
 	case GS_RGBA16:
@@ -411,6 +411,7 @@ struct gs_shader_param {
 	int array_count;
 
 	struct gs_texture *texture;
+	bool srgb;
 
 	DARRAY(uint8_t) cur_value;
 	DARRAY(uint8_t) def_value;
@@ -600,6 +601,7 @@ struct gs_device {
 	gs_texture_t *cur_render_target;
 	gs_zstencil_t *cur_zstencil_buffer;
 	int cur_render_side;
+	bool cur_force_srgb_texture_load;
 	gs_texture_t *cur_textures[GS_MAX_TEXTURES];
 	gs_samplerstate_t *cur_samplers[GS_MAX_TEXTURES];
 	gs_vertbuffer_t *cur_vertex_buffer;

@@ -1593,6 +1593,16 @@ void gs_load_texture(gs_texture_t *tex, int unit)
 	graphics->exports.device_load_texture(graphics->device, tex, unit);
 }
 
+void gs_load_texture_srgb(gs_texture_t *tex, int unit)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_load_texture_srgb"))
+		return;
+
+	graphics->exports.device_load_texture_srgb(graphics->device, tex, unit);
+}
+
 void gs_load_samplerstate(gs_samplerstate_t *samplerstate, int unit)
 {
 	graphics_t *graphics = thread_graphics;
@@ -1698,6 +1708,28 @@ void gs_set_cube_render_target(gs_texture_t *cubetex, int side,
 
 	graphics->exports.device_set_cube_render_target(
 		graphics->device, cubetex, side, zstencil);
+}
+
+void gs_enable_framebuffer_srgb(bool enable)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_enable_framebuffer_srgb"))
+		return;
+
+	graphics->exports.device_enable_framebuffer_srgb(graphics->device,
+							 enable);
+}
+
+void gs_enable_force_srgb_texture_load(bool enable)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_enable_force_srgb_texture_load"))
+		return;
+
+	graphics->exports.device_enable_force_srgb_texture_load(
+		graphics->device, enable);
 }
 
 void gs_copy_texture(gs_texture_t *dst, gs_texture_t *src)

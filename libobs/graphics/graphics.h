@@ -296,6 +296,11 @@ enum gs_shader_param_type {
 	GS_SHADER_PARAM_TEXTURE,
 };
 
+struct gs_shader_texture {
+	gs_texture_t *tex;
+	bool srgb;
+};
+
 #ifndef SWIG
 struct gs_shader_param_info {
 	enum gs_shader_param_type type;
@@ -417,6 +422,7 @@ EXPORT void gs_effect_set_vec2(gs_eparam_t *param, const struct vec2 *val);
 EXPORT void gs_effect_set_vec3(gs_eparam_t *param, const struct vec3 *val);
 EXPORT void gs_effect_set_vec4(gs_eparam_t *param, const struct vec4 *val);
 EXPORT void gs_effect_set_texture(gs_eparam_t *param, gs_texture_t *val);
+EXPORT void gs_effect_set_texture_srgb(gs_eparam_t *param, gs_texture_t *val);
 EXPORT void gs_effect_set_val(gs_eparam_t *param, const void *val, size_t size);
 EXPORT void gs_effect_set_default(gs_eparam_t *param);
 EXPORT size_t gs_effect_get_val_size(gs_eparam_t *param);
@@ -645,6 +651,7 @@ EXPORT enum gs_texture_type gs_get_texture_type(const gs_texture_t *texture);
 EXPORT void gs_load_vertexbuffer(gs_vertbuffer_t *vertbuffer);
 EXPORT void gs_load_indexbuffer(gs_indexbuffer_t *indexbuffer);
 EXPORT void gs_load_texture(gs_texture_t *tex, int unit);
+EXPORT void gs_load_texture_srgb(gs_texture_t *tex, int unit);
 EXPORT void gs_load_samplerstate(gs_samplerstate_t *samplerstate, int unit);
 EXPORT void gs_load_vertexshader(gs_shader_t *vertshader);
 EXPORT void gs_load_pixelshader(gs_shader_t *pixelshader);
@@ -660,6 +667,9 @@ EXPORT gs_zstencil_t *gs_get_zstencil_target(void);
 EXPORT void gs_set_render_target(gs_texture_t *tex, gs_zstencil_t *zstencil);
 EXPORT void gs_set_cube_render_target(gs_texture_t *cubetex, int side,
 				      gs_zstencil_t *zstencil);
+EXPORT void gs_enable_framebuffer_srgb(bool enable);
+
+EXPORT void gs_enable_force_srgb_texture_load(bool enable);
 
 EXPORT void gs_copy_texture(gs_texture_t *dst, gs_texture_t *src);
 EXPORT void gs_copy_texture_region(gs_texture_t *dst, uint32_t dst_x,

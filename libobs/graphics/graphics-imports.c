@@ -72,6 +72,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_load_vertexbuffer);
 	GRAPHICS_IMPORT(device_load_indexbuffer);
 	GRAPHICS_IMPORT(device_load_texture);
+	GRAPHICS_IMPORT(device_load_texture_srgb);
 	GRAPHICS_IMPORT(device_load_samplerstate);
 	GRAPHICS_IMPORT(device_load_vertexshader);
 	GRAPHICS_IMPORT(device_load_pixelshader);
@@ -82,6 +83,8 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_get_zstencil_target);
 	GRAPHICS_IMPORT(device_set_render_target);
 	GRAPHICS_IMPORT(device_set_cube_render_target);
+	GRAPHICS_IMPORT(device_enable_framebuffer_srgb);
+	GRAPHICS_IMPORT(device_enable_force_srgb_texture_load);
 	GRAPHICS_IMPORT(device_copy_texture_region);
 	GRAPHICS_IMPORT(device_copy_texture);
 	GRAPHICS_IMPORT(device_stage_texture);

@@ -3435,9 +3435,9 @@ bool obs_source_process_filter_begin(obs_source_t *filter,
 	return true;
 }
 
-void obs_source_process_filter_tech_end(obs_source_t *filter,
-					gs_effect_t *effect, uint32_t width,
-					uint32_t height, const char *tech_name)
+static void obs_source_process_filter_tech_end_internal(
+	obs_source_t *filter, gs_effect_t *effect, uint32_t width,
+	uint32_t height, const char *tech_name, bool srgb)
 {
 	obs_source_t *target, *parent;
 	gs_texture_t *texture;
@@ -3456,6 +3456,11 @@ void obs_source_process_filter_tech_end(obs_source_t *filter,
 
 	const char *tech = tech_name ? tech_name : "Draw";
 
+	if (srgb) {
+		gs_enable_force_srgb_texture_load(true);
+		gs_enable_framebuffer_srgb(true);
+	}
+
 	if (can_bypass(target, parent, parent_flags, filter->allow_direct)) {
 		render_filter_bypass(target, effect, tech);
 	} else {
@@ -3464,6 +3469,28 @@ void obs_source_process_filter_tech_end(obs_source_t *filter,
 			render_filter_tex(texture, effect, width, height, tech);
 		}
 	}
+
+	if (srgb) {
+		gs_enable_framebuffer_srgb(false);
+		gs_enable_force_srgb_texture_load(false);
+	}
+}
+
+void obs_source_process_filter_tech_end(obs_source_t *filter,
+					gs_effect_t *effect, uint32_t width,
+					uint32_t height, const char *tech_name)
+{
+	obs_source_process_filter_tech_end_internal(filter, effect, width,
+						    height, tech_name, false);
+}
+
+void obs_source_process_filter_tech_end_srgb(obs_source_t *filter,
+					     gs_effect_t *effect,
+					     uint32_t width, uint32_t height,
+					     const char *tech_name)
+{
+	obs_source_process_filter_tech_end_internal(filter, effect, width,
+						    height, tech_name, true);
 }
 
 void obs_source_process_filter_end(obs_source_t *filter, gs_effect_t *effect,
@@ -3474,6 +3501,17 @@ void obs_source_process_filter_end(obs_source_t *filter, gs_effect_t *effect,
 
 	obs_source_process_filter_tech_end(filter, effect, width, height,
 					   "Draw");
+}
+
+void obs_source_process_filter_end_srgb(obs_source_t *filter,
+					gs_effect_t *effect, uint32_t width,
+					uint32_t height)
+{
+	if (!obs_ptr_valid(filter, "obs_source_process_filter_end_srgb"))
+		return;
+
+	obs_source_process_filter_tech_end_srgb(filter, effect, width, height,
+						"Draw");
 }
 
 void obs_source_skip_video_filter(obs_source_t *filter)
@@ -3915,8 +3953,9 @@ void obs_source_draw_set_color_matrix(const struct matrix4 *color_matrix,
 	gs_effect_set_val(range_max, color_range_max, sizeof(float) * 3);
 }
 
-void obs_source_draw(gs_texture_t *texture, int x, int y, uint32_t cx,
-		     uint32_t cy, bool flip)
+static void obs_source_draw_internal(gs_texture_t *texture, int x, int y,
+				     uint32_t cx, uint32_t cy, bool flip,
+				     bool srgb)
 {
 	gs_effect_t *effect = gs_get_effect();
 	bool change_pos = (x != 0 || y != 0);
@@ -3931,7 +3970,10 @@ void obs_source_draw(gs_texture_t *texture, int x, int y, uint32_t cx,
 		return;
 
 	image = gs_effect_get_param_by_name(effect, "image");
-	gs_effect_set_texture(image, texture);
+	if (srgb)
+		gs_effect_set_texture_srgb(image, texture);
+	else
+		gs_effect_set_texture(image, texture);
 
 	if (change_pos) {
 		gs_matrix_push();
@@ -3942,6 +3984,18 @@ void obs_source_draw(gs_texture_t *texture, int x, int y, uint32_t cx,
 
 	if (change_pos)
 		gs_matrix_pop();
+}
+
+void obs_source_draw(gs_texture_t *texture, int x, int y, uint32_t cx,
+		     uint32_t cy, bool flip)
+{
+	obs_source_draw_internal(texture, x, y, cx, cy, flip, false);
+}
+
+void obs_source_draw_srgb(gs_texture_t *texture, int x, int y, uint32_t cx,
+			  uint32_t cy, bool flip)
+{
+	obs_source_draw_internal(texture, x, y, cx, cy, flip, true);
 }
 
 void obs_source_inc_showing(obs_source_t *source)

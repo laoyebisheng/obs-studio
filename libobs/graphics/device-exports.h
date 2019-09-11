@@ -88,6 +88,8 @@ EXPORT void device_load_indexbuffer(gs_device_t *device,
 				    gs_indexbuffer_t *indexbuffer);
 EXPORT void device_load_texture(gs_device_t *device, gs_texture_t *tex,
 				int unit);
+EXPORT void device_load_texture_srgb(gs_device_t *device, gs_texture_t *tex,
+				     int unit);
 EXPORT void device_load_samplerstate(gs_device_t *device,
 				     gs_samplerstate_t *samplerstate, int unit);
 EXPORT void device_load_vertexshader(gs_device_t *device,
@@ -105,6 +107,9 @@ EXPORT void device_set_render_target(gs_device_t *device, gs_texture_t *tex,
 EXPORT void device_set_cube_render_target(gs_device_t *device,
 					  gs_texture_t *cubetex, int side,
 					  gs_zstencil_t *zstencil);
+EXPORT void device_enable_framebuffer_srgb(gs_device_t *device, bool enable);
+EXPORT void device_enable_force_srgb_texture_load(gs_device_t *device,
+						  bool enable);
 EXPORT void device_copy_texture(gs_device_t *device, gs_texture_t *dst,
 				gs_texture_t *src);
 EXPORT void device_copy_texture_region(gs_device_t *device, gs_texture_t *dst,
