@@ -147,10 +147,12 @@ static void image_source_render(void *data, gs_effect_t *effect)
 	if (!context->if2.image.texture)
 		return;
 
-	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
-			      context->if2.image.texture);
+	gs_effect_set_texture_srgb(gs_effect_get_param_by_name(effect, "image"),
+				   context->if2.image.texture);
+	gs_enable_framebuffer_srgb(true);
 	gs_draw_sprite(context->if2.image.texture, 0, context->if2.image.cx,
 		       context->if2.image.cy);
+	gs_enable_framebuffer_srgb(false);
 }
 
 static void image_source_tick(void *data, float seconds)
