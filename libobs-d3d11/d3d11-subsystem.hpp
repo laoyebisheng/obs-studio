@@ -705,6 +705,7 @@ struct gs_swap_chain : gs_obj {
 	gs_texture_2d target;
 	gs_zstencil_buffer zs;
 	ComPtr<IDXGISwapChain> swap;
+	UINT presentFlags = 0;
 
 	void InitTarget(uint32_t cx, uint32_t cy);
 	void InitZStencilBuffer(uint32_t cx, uint32_t cy);

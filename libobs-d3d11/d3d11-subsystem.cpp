@@ -23,6 +23,7 @@
 #include <graphics/matrix3.h>
 #include <winternl.h>
 #include <d3d9.h>
+#include <dxgi1_5.h>
 #include "d3d11-subsystem.hpp"
 #include "d3d11-config.h"
 
@@ -75,7 +76,7 @@ gs_obj::~gs_obj()
 static inline void make_swap_desc_common(DXGI_SWAP_CHAIN_DESC &desc,
 					 const gs_init_data *data,
 					 UINT num_backbuffers,
-					 DXGI_SWAP_EFFECT effect)
+					 DXGI_SWAP_EFFECT effect, UINT flags)
 {
 	memset(&desc, 0, sizeof(desc));
 	desc.BufferDesc.Width = data->cx;
@@ -87,6 +88,7 @@ static inline void make_swap_desc_common(DXGI_SWAP_CHAIN_DESC &desc,
 	desc.OutputWindow = (HWND)data->window.hwnd;
 	desc.Windowed = true;
 	desc.SwapEffect = effect;
+	desc.Flags = flags;
 }
 
 static inline void make_swap_desc_win7(DXGI_SWAP_CHAIN_DESC &desc,
@@ -96,17 +98,20 @@ static inline void make_swap_desc_win7(DXGI_SWAP_CHAIN_DESC &desc,
 	if (num_backbuffers == 0)
 		num_backbuffers = 1;
 	make_swap_desc_common(desc, data, num_backbuffers,
-			      DXGI_SWAP_EFFECT_DISCARD);
+			      DXGI_SWAP_EFFECT_DISCARD, 0);
 }
 
 static inline void make_swap_desc_win10(DXGI_SWAP_CHAIN_DESC &desc,
-					const gs_init_data *data)
+					const gs_init_data *data,
+					BOOL allowTearing)
 {
 	UINT num_backbuffers = data->num_backbuffers;
 	if (num_backbuffers == 0)
 		num_backbuffers = 2;
+	const UINT flags = allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING
+					: 0;
 	make_swap_desc_common(desc, data, num_backbuffers,
-			      DXGI_SWAP_EFFECT_FLIP_DISCARD);
+			      DXGI_SWAP_EFFECT_FLIP_DISCARD, flags);
 }
 
 void gs_swap_chain::InitTarget(uint32_t cx, uint32_t cy)
@@ -191,10 +196,23 @@ gs_swap_chain::gs_swap_chain(gs_device *device, const gs_init_data *data)
 {
 	HRESULT hr;
 
-	make_swap_desc_win10(swapDesc, data);
+	BOOL allowTearing = FALSE;
+	ComQIPtr<IDXGIFactory5> factory5(device->factory);
+	if (factory5) {
+		hr = factory5->CheckFeatureSupport(
+			DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing,
+			sizeof(allowTearing));
+		if (SUCCEEDED(hr) && allowTearing) {
+			presentFlags |= DXGI_PRESENT_ALLOW_TEARING;
+		}
+	}
+
+	make_swap_desc_win10(swapDesc, data, allowTearing);
 	hr = device->factory->CreateSwapChain(device->device, &swapDesc,
 					      swap.Assign());
-	if (FAILED(hr)) {
+	if (SUCCEEDED(hr)) {
+		presentFlags |= DXGI_PRESENT_DO_NOT_WAIT;
+	} else {
 		make_swap_desc_win7(swapDesc, data);
 		hr = device->factory->CreateSwapChain(device->device, &swapDesc,
 						      swap.Assign());
@@ -1900,7 +1918,8 @@ void device_present(gs_device_t *device)
 	HRESULT hr;
 
 	if (device->curSwapChain) {
-		hr = device->curSwapChain->swap->Present(0, 0);
+		hr = device->curSwapChain->swap->Present(
+			0, device->curSwapChain->presentFlags);
 		if (hr == DXGI_ERROR_DEVICE_REMOVED ||
 		    hr == DXGI_ERROR_DEVICE_RESET) {
 			device->RebuildDevice();
