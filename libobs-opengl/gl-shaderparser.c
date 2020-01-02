@@ -322,7 +322,8 @@ static bool gl_write_saturate(struct gl_shader_parser *glsp,
 
 static inline bool gl_write_texture_call(struct gl_shader_parser *glsp,
 					 struct shader_var *var,
-					 const char *call, bool sampler)
+					 const char *call, bool sampler,
+					 bool srgb_transfer)
 {
 	struct cf_parser *cfp = &glsp->parser.cfp;
 
@@ -344,6 +345,8 @@ static inline bool gl_write_texture_call(struct gl_shader_parser *glsp,
 
 		var->gl_sampler_id = sampler_id;
 	}
+
+	var->gl_srgb_transfer = srgb_transfer;
 
 	dstr_cat(&glsp->gl_string, call);
 	dstr_cat(&glsp->gl_string, "(");
@@ -370,16 +373,26 @@ static bool gl_write_texture_code(struct gl_shader_parser *glsp,
 
 	const char *function_end = ")";
 
-	if (cf_token_is(cfp, "Sample"))
-		written = gl_write_texture_call(glsp, var, "texture", true);
-	else if (cf_token_is(cfp, "SampleBias"))
-		written = gl_write_texture_call(glsp, var, "texture", true);
-	else if (cf_token_is(cfp, "SampleGrad"))
-		written = gl_write_texture_call(glsp, var, "textureGrad", true);
-	else if (cf_token_is(cfp, "SampleLevel"))
-		written = gl_write_texture_call(glsp, var, "textureLod", true);
-	else if (cf_token_is(cfp, "Load")) {
-		written = gl_write_texture_call(glsp, var, "texelFetch", false);
+	if (cf_token_is(cfp, "Sample")) {
+		written = gl_write_texture_call(glsp, var, "texture", true,
+						false);
+	} else if (cf_token_is(cfp, "SampleBias")) {
+		written = gl_write_texture_call(glsp, var, "texture", true,
+						false);
+	} else if (cf_token_is(cfp, "SampleGrad")) {
+		written = gl_write_texture_call(glsp, var, "textureGrad", true,
+						false);
+	} else if (cf_token_is(cfp, "SampleLevel")) {
+		written = gl_write_texture_call(glsp, var, "textureLod", true,
+						false);
+	} else if (cf_token_is(cfp, "LoadRaw")) {
+		written = gl_write_texture_call(glsp, var, "obs_load_raw",
+						false, true);
+		dstr_cat(&glsp->gl_string, "(");
+		function_end = ").xy)";
+	} else if (cf_token_is(cfp, "Load")) {
+		written = gl_write_texture_call(glsp, var, "texelFetch", false,
+						false);
 		dstr_cat(&glsp->gl_string, "(");
 		function_end = ").xy, 0)";
 	}
@@ -694,6 +707,23 @@ static bool gl_shader_buildstring(struct gl_shader_parser *glsp)
 
 	dstr_copy(&glsp->gl_string, "#version 330\n\n");
 	dstr_cat(&glsp->gl_string, "const bool obs_glsl_compile = true;\n\n");
+	dstr_cat(&glsp->gl_string, "float obs_srgb_undo_decode(float u)\n");
+	dstr_cat(&glsp->gl_string, "{\n");
+	dstr_cat(&glsp->gl_string, "\treturn (u < 0.0031308) ? (12.92 * u)\n");
+	dstr_cat(&glsp->gl_string,
+		 "\t\t\t       : ((1.055 * pow(u, 1.0 / 2.4)) - 0.055);\n");
+	dstr_cat(&glsp->gl_string, "}\n\n");
+	dstr_cat(&glsp->gl_string, "vec4 obs_load_raw(sampler2D s, ivec2 p)\n");
+	dstr_cat(&glsp->gl_string, "{\n");
+	dstr_cat(&glsp->gl_string, "\tvec4 color = texelFetch(s, p, 0);\n");
+	dstr_cat(&glsp->gl_string,
+		 "\tcolor.r = obs_srgb_undo_decode(color.r);\n");
+	dstr_cat(&glsp->gl_string,
+		 "\tcolor.g = obs_srgb_undo_decode(color.g);\n");
+	dstr_cat(&glsp->gl_string,
+		 "\tcolor.b = obs_srgb_undo_decode(color.b);\n");
+	dstr_cat(&glsp->gl_string, "\treturn color;\n");
+	dstr_cat(&glsp->gl_string, "}\n\n");
 	gl_write_params(glsp);
 	gl_write_inputs(glsp, main_func);
 	gl_write_outputs(glsp, main_func);

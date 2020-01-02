@@ -212,6 +212,8 @@ void ShaderProcessor::BuildString(string &outputString)
 			output << "SV_Position";
 		else if (strref_cmp(&token->str, "TARGET") == 0)
 			output << "SV_Target";
+		else if (strref_cmp(&token->str, "LoadRaw") == 0)
+			output << "Load";
 		else if (strref_cmp(&token->str, "texture2d") == 0)
 			output << "Texture2D";
 		else if (strref_cmp(&token->str, "texture3d") == 0)

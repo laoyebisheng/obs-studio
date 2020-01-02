@@ -51,7 +51,8 @@ struct shader_var {
 	char *mapping;
 	enum shader_var_type var_type;
 	int array_count;
-	size_t gl_sampler_id; /* optional: used/parsed by GL */
+	size_t gl_sampler_id;  /* optional: used/parsed by GL */
+	bool gl_srgb_transfer; /* optional: used/parsed by GL */
 
 	DARRAY(uint8_t) default_val;
 };
@@ -77,6 +78,7 @@ static inline void shader_var_init_param(struct shader_var *sv, char *type,
 	sv->mapping = NULL;
 	sv->array_count = 0;
 	sv->gl_sampler_id = (size_t)-1;
+	sv->gl_srgb_transfer = false;
 	da_init(sv->default_val);
 }
 

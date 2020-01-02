@@ -77,6 +77,7 @@ static bool gl_add_param(struct gs_shader *shader, struct shader_var *var,
 
 	if (param.type == GS_SHADER_PARAM_TEXTURE) {
 		param.sampler_id = var->gl_sampler_id;
+		param.srgb_transfer = var->gl_srgb_transfer;
 		param.texture_id = (*texture_id)++;
 	} else {
 		param.changed = true;

@@ -212,7 +212,7 @@ float3 YUV_to_RGB(float3 yuv)
 
 float3 PSUYVY_Reverse(FragTex frag_in) : TARGET
 {
-	float4 y2uv = image.Load(int3(frag_in.uv.xy, 0));
+	float4 y2uv = image.LoadRaw(int3(frag_in.uv.xy, 0));
 	float2 y01 = y2uv.yw;
 	float2 cbcr = y2uv.zx;
 	float leftover = frac(frag_in.uv.x);
@@ -224,7 +224,7 @@ float3 PSUYVY_Reverse(FragTex frag_in) : TARGET
 
 float3 PSYUY2_Reverse(FragTex frag_in) : TARGET
 {
-	float4 y2uv = image.Load(int3(frag_in.uv.xy, 0));
+	float4 y2uv = image.LoadRaw(int3(frag_in.uv.xy, 0));
 	float2 y01 = y2uv.zx;
 	float2 cbcr = y2uv.yw;
 	float leftover = frac(frag_in.uv.x);
@@ -236,7 +236,7 @@ float3 PSYUY2_Reverse(FragTex frag_in) : TARGET
 
 float3 PSYVYU_Reverse(FragTex frag_in) : TARGET
 {
-	float4 y2uv = image.Load(int3(frag_in.uv.xy, 0));
+	float4 y2uv = image.LoadRaw(int3(frag_in.uv.xy, 0));
 	float2 y01 = y2uv.zx;
 	float2 cbcr = y2uv.wy;
 	float leftover = frac(frag_in.uv.x);

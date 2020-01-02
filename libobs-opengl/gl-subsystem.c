@@ -520,10 +520,14 @@ static void device_load_texture_internal(gs_device_t *device, gs_texture_t *tex,
 		return;
 
 	// texelFetch doesn't need a sampler
-	if (param->sampler_id != (size_t)-1)
+	if (param->sampler_id != (size_t)-1) {
+		if (param->srgb_transfer && (decode != GL_SKIP_DECODE_EXT))
+			goto fail;
+
 		sampler = device->cur_samplers[param->sampler_id];
-	else
+	} else {
 		sampler = NULL;
+	}
 
 	if (!gl_bind_texture(tex->gl_target, tex->texture))
 		goto fail;

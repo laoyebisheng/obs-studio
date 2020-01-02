@@ -42,12 +42,12 @@ int3 select(int2 texel, int x, int y)
 
 float4 load_at_prev(int2 texel, int x, int y)
 {
-	return previous_image.Load(select(texel, x, y));
+	return previous_image.LoadRaw(select(texel, x, y));
 }
 
 float4 load_at_image(int2 texel, int x, int y)
 {
-	return image.Load(select(texel, x, y));
+	return image.LoadRaw(select(texel, x, y));
 }
 
 float4 load_at(int2 texel, int x, int y, int field)

@@ -408,6 +408,7 @@ struct gs_shader_param {
 	gs_samplerstate_t *next_sampler;
 	GLint texture_id;
 	size_t sampler_id;
+	bool srgb_transfer;
 	int array_count;
 
 	struct gs_texture *texture;
