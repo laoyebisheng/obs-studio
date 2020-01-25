@@ -547,16 +547,39 @@ static int proto_try_connect(struct ffmpeg_encoded_output *stream)
 	config.format =
 		obs_to_ffmpeg_video_format(video_output_get_format(video));
 
+	config.color_range = voi->range == VIDEO_RANGE_FULL ? AVCOL_RANGE_JPEG
+							    : AVCOL_RANGE_MPEG;
+	switch (voi->colorspace) {
+	case VIDEO_CS_DEFAULT:
+	case VIDEO_CS_601:
+		config.color_primaries = AVCOL_PRI_SMPTE170M;
+		config.color_trc = AVCOL_TRC_SMPTE170M;
+		break;
+	case VIDEO_CS_709:
+		config.color_primaries = AVCOL_PRI_BT709;
+		config.color_trc = AVCOL_TRC_BT709;
+		break;
+	case VIDEO_CS_SRGB:
+		config.color_primaries = AVCOL_PRI_BT709;
+		config.color_trc = AVCOL_TRC_IEC61966_2_4;
+		break;
+	}
+
 	if (format_is_yuv(voi->format)) {
-		config.color_range = voi->range == VIDEO_RANGE_FULL
-					     ? AVCOL_RANGE_JPEG
-					     : AVCOL_RANGE_MPEG;
-		config.color_space = voi->colorspace == VIDEO_CS_709
-					     ? AVCOL_SPC_BT709
-					     : AVCOL_SPC_BT470BG;
+		switch (voi->colorspace) {
+		case VIDEO_CS_DEFAULT:
+		case VIDEO_CS_601:
+			config.colorspace = AVCOL_SPC_SMPTE170M;
+			break;
+		case VIDEO_CS_709:
+			config.colorspace = AVCOL_SPC_BT709;
+			break;
+		case VIDEO_CS_SRGB:
+			config.colorspace = AVCOL_SPC_BT709;
+			break;
+		}
 	} else {
-		config.color_range = AVCOL_RANGE_UNSPECIFIED;
-		config.color_space = AVCOL_SPC_RGB;
+		config.colorspace = AVCOL_SPC_RGB;
 	}
 
 	if (config.format == AV_PIX_FMT_NONE) {
